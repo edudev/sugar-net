@@ -1,3 +1,30 @@
 #main-toolbar #activity-button {
   background-image: url(../activity/activity-icon.svg);
 }
+#main-toolbar #collaboration-button {
+  background-image: url(../lib/sugar-web/graphics/icons/actions/network-mesh.svg);
+}
+.usericon {
+  display: inline;
+  position: absolute;
+  width: 47px;
+  height: 47px;
+  margin: 4px 2px;
+  color: white;
+  color: transparent;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  border: 0;
+  border-radius: 5.5px;
+  background-image: url(../lib/sugar-web/graphics/icons/computer-xo.svg);
+}
+
+#me {
+  margin: auto;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}

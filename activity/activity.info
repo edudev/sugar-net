@@ -1,0 +1,6 @@
+[Activity]
+name = Sugar Net
+activity_version = 1
+bundle_id = org.sugarlabs.SugarNet
+exec = sugar-activity-web
+icon = activity-icon

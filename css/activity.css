@@ -4,9 +4,8 @@
 #main-toolbar #collaboration-button {
   background-image: url(../lib/sugar-web/graphics/icons/actions/network-mesh.svg);
 }
-.usericon {
+.user .usericon {
   display: inline;
-  position: absolute;
   width: 47px;
   height: 47px;
   margin: 4px 2px;
@@ -20,11 +19,30 @@
   border-radius: 5.5px;
   background-image: url(../lib/sugar-web/graphics/icons/computer-xo.svg);
 }
-
-#me {
+.user {
+  position: absolute;
+}
+.user.myself {
   margin: auto;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  width: 50px;
+  height: 50px;
+}
+.user ul.sharedList {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  display: none;
+  background: #efefef;
+  list-style-type: none;
+  padding: 0;
+}
+.user ul.sharedList li {
+  padding: 5px 20px;
+}
+.user:hover ul.sharedList {
+  display: block;
 }

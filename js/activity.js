@@ -8,9 +8,11 @@ define(function (require) {
     // the web activity needs to be usable from a normal browser
     // which is impossible, unless the web activity is hosted on a web server
 
-    var Activity = function(uri) {
+    var Activity = function(activityId, uri) {
         // activity://org.sugarlabs.GTDActivity/index.html#&togetherjs=Vxx3wAr7vD
         // maybe pass the document title along with the uri
+        this.activityId = activityId;
+        this.uri = uri;
         this.bundleId = null;
         this.showName = null;
 
@@ -19,21 +21,35 @@ define(function (require) {
             this.bundleId = uri.slice(prefix.length,
                                       uri.indexOf('/', prefix.length));
 
-            var split = this.bundleId.splti('.');
+            var split = this.bundleId.split('.');
             this.showName = split[split.length-1];
         }
 
         // maybe parse the path and/or togetherjsID from the uri
-    }
 
-    var User = function(colors, name) {
+
+        this.open = function() {
+            // TODO: need to pass the creator's color, too
+            bus.sendMessage("mesh.open",
+                            [this.activityId, this.bundleId, this.uri], null);
+        }
+    };
+
+    var User = function(clientId, colors, name) {
+        this.clientId = clientId;
         this.colors = colors;
         this.name = name;
         this.sharedActivities = {}
 
         this.update = function() {
-            if( this.colors && this.name )
-                collaboration.send({type: "init", user: myself});
+            if( this.colors && this.name ) {
+                this.clientId = collaboration.require('session').clientId;
+                collaboration.send({type: 'init', user: myself});
+
+                var userElement = document.getElementById('user');
+                if( userElement )
+                    userElement.id = 'user' + this.clientId;
+            }
         };
         this.setColors = function(colors) {
             this.colors = colors;
@@ -45,83 +61,120 @@ define(function (require) {
         };
 
         this.shareActivity = function(activityId, uri) {
-            this.sharedActivities[activityId] = new Activity(uri);
-        }
+            var activity;
+            if( activityId in sharedActivities ) {
+                activity = sharedActivities[activityId];
+            } else {
+                activity = new Activity(activityId, uri);
+                sharedActivities[activityId] = activity;
+            }
+            this.sharedActivities[activityId] = activity;
+        };
         this.unshareActivity = function(activityId) {
             delete this.sharedActivities[activityId];
+        };
+
+        this.copy = function(source) {
+            for( prop in source )
+                this[prop] = source[prop];
+
+            for( activityId in this.sharedActivities ) {
+                var activity = this.sharedActivities[activityId];
+                this.shareActivity(activity.activityId, activity.uri);
+            }
         }
     };
 
     var canvas = null;
-    var templateIcon = null;
-    var templateList = null;
+    var template = null;
     var myself = new User();
     var users = {};
+    var sharedActivities = {};
 
     function sayHelloBack(msg) {
         collaboration.send({type: "init", user: myself});
     }
 
+    function populateActivityList(user) {
+        var result = '';
+        for( var activityId in user.sharedActivities ) {
+            result += '<li><a href="#' + activityId + '">' + 
+                user.sharedActivities[activityId].showName + '</a></li>';
+        }
+
+        var element = document.getElementById(
+            'user' + user.clientId).querySelector('.sharedList');
+        element.innerHTML = result;
+    }
+
     function addUser(msg) {
-        var userIcon;
-        var activityList;
+        var userElement;
+
+        var user = new User();
+        // TODO: find a way to make this transparent
+        user.copy(msg.user);
 
         if( msg.clientId in users ) {
-            userIcon = document.getElementById("user" + msg.clientId);
-            activityList = document.getElementById("list" + msg.clientId);
+            userElement = document.getElementById("user" + msg.clientId);
+        } else {
+            userElement = template.cloneNode(true);
+            userElement.id = "user" + msg.clientId;
         }
-        else {
-            userIcon = templateIcon.cloneNode(true);
-            userIcon.id = "user" + msg.clientId;
+        var userIcon = userElement.querySelector('.usericon');
 
-            activityList = templateList.cloneNode(false);
-            activityList.id = "list" + msg.clientId;
-        }
-        
-        userIcon.title = msg.user.name;
+        userIcon.title = user.name;
 
-        canvas.appendChild(userIcon);
-        canvas.appendChild(activityList);
+        canvas.appendChild(userElement);
+        populateActivityList(user);
 
         // TODO: use a better positioning algorithm
 
         var userPos = {}
         userPos.top = Math.random() * canvas.offsetHeight;
         userPos.left = Math.random() * canvas.offsetWidth;
-        userIcon.style.top = userPos.top + 'px';
-        userIcon.style.left = userPos.left + 'px';
-        activityList.style.top = (userPos.top + 45) + 'px';
-        activityList.style.left = (userPos.left + 45) + 'px';
-        icon.colorize(userIcon, msg.user.colors);
+        userElement.style.top = userPos.top + 'px';
+        userElement.style.left = userPos.left + 'px';
+        icon.colorize(userIcon, user.colors);
 
-
-        users[msg.clientId] = msg.user;
+        users[msg.clientId] = user;
+        for( var activityId in user.sharedActivities ) {
+            sharedActivities[activityId] = user.sharedActivities[activityId];
+        }
     }
 
     function activityShared(notification) {
-        console.log("Shared", notification);
         var activityId = notification[0];
         var uri = notification[1];
         myself.shareActivity(activityId, uri);
         collaboration.send({type: "broadcast", activityId: activityId,
                             uri: uri});
+
+        populateActivityList(myself);
     }
 
     function activityUnshared(notification) {
-        console.log("Unshared", notification);
         var activityId = notification[0];
         myself.unshareActivity(activityId);
         collaboration.send({type: "unshare", activityId: activityId});
+
+        populateActivityList(myself);
     }
 
     function networkActivityShared(msg) {
-        console.log("SharedN", msg);
         users[msg.clientId].shareActivity(msg.activityId, msg.uri);
+
+        populateActivityList(users[msg.clientId]);
     }
 
     function networkActivityUnshared(msg) {
-        console.log("UnsharedN", msg);
         users[msg.clientId].unshareActivity(msg.activityId);
+
+        populateActivityList(users[msg.clientId]);
+    }
+
+    function hashChanged() {
+        var activityId = window.location.hash.slice(1);
+        sharedActivities[activityId].open();
     }
 
     // Manipulate the DOM only when it is ready.
@@ -131,11 +184,14 @@ define(function (require) {
         collaboration.setup();
 
         bus.sendMessage("mesh.listen", [], null);
+        window.addEventListener("hashchange", hashChanged);
 
         canvas = document.getElementById("canvas");
+        var user = document.getElementById("user");
+        template = user.cloneNode(true);
+        template.classList.remove('myself');
+        var meIcon = user.querySelector('.usericon');
 
-        var meIcon = document.getElementById("me");
-        templateIcon = meIcon.cloneNode(true);
         activity.getXOColor(function (error, colors) {
             icon.colorize(meIcon, colors);
             myself.setColors(colors);
@@ -143,8 +199,6 @@ define(function (require) {
         activity.getNickname(function (error, name) {
             myself.setName(name);
         });
-
-        templateList = document.getElementById("myActivities");
 
         collaboration.hub.on("togetherjs.hello", sayHelloBack);
         collaboration.hub.on("init", addUser);
